@@ -1,0 +1,60 @@
+require("dotenv").config();
+const express=require("express"),http=require("http"),path=require("path"),fs=require("fs"),crypto=require("crypto"),bcrypt=require("bcryptjs"),jwt=require("jsonwebtoken"),cookieParser=require("cookie-parser"),multer=require("multer");
+const {Server}=require("socket.io");
+const app=express(),server=http.createServer(app),io=new Server(server),PORT=+process.env.PORT||3000;
+const SECRET=process.env.JWT_SECRET||crypto.randomBytes(32).toString("hex"),BTC=process.env.BTC_ADDRESS||"1KbyAebAkdcvwd6wKjN6dyz16CoHpKrah1",OWNER_EMAIL=(process.env.OWNER_EMAIL||"").toLowerCase(),OWNER_PASSWORD=process.env.OWNER_PASSWORD||"";
+const dataDir=path.join(__dirname,"data"),upDir=path.join(__dirname,"uploads"),dbFile=path.join(dataDir,"store.json");fs.mkdirSync(dataDir,{recursive:true});fs.mkdirSync(upDir,{recursive:true});
+let db=fs.existsSync(dbFile)?JSON.parse(fs.readFileSync(dbFile)): {users:[],conversations:[],messages:[],orders:[]};const save=()=>fs.writeFileSync(dbFile,JSON.stringify(db,null,2)),uid=p=>p+"_"+crypto.randomBytes(8).toString("hex"),now=()=>new Date().toISOString();
+const products=[
+["youtube","YouTube Growth Strategy",30,"YouTube","Practical blueprint for positioning, discoverability and consistent channel growth."],
+["twitch","Twitch Growth Strategy",30,"Twitch","Streamer-focused blueprint for discoverability, content structure and community growth."],
+["tiktok","TikTok Growth Strategy",30,"TikTok","Short-form content positioning, consistency and discoverability strategy."],
+["instagram","Instagram Growth Strategy",30,"Instagram","Creator strategy for content positioning, discovery and audience development."],
+["facebook","Facebook Growth Strategy",30,"Facebook","Practical content and audience-growth strategy for Facebook creators."],
+["discord","Discord Growth Strategy",30,"Discord","Community strategy for building and organizing a stronger creator community."],
+["x-twitter","X/Twitter Growth Strategy",30,"X / Twitter","Content and positioning blueprint for building reach and engagement."],
+["linkedin","LinkedIn Growth Strategy",30,"LinkedIn","Professional creator strategy for visibility and positioning."],
+["pinterest","Pinterest Growth Strategy",30,"Pinterest","Discovery-focused visual search and evergreen content strategy."],
+["reddit","Reddit Growth Strategy",30,"Reddit","Community-first strategy for authentic participation and discoverability."],
+["telegram","Telegram Growth Strategy",30,"Telegram","Strategy for building and engaging a direct creator community."],
+["whatsapp","WhatsApp Growth Strategy",30,"WhatsApp","Community communication strategy for creators."],
+["snapchat","Snapchat Growth Strategy",30,"Snapchat","Short-form and community strategy for Snapchat creators."],
+["kick","Kick Growth Strategy",30,"Kick","Creator-focused strategy blueprint for building an audience on Kick."],
+["custom-social","Custom Social Media Strategy",30,"Custom","Tailored strategy blueprint for a creator's chosen platform and goals."],
+["tiktok-instagram","TikTok + Instagram Strategy",55,"Bundle","Combined short-form and visual-platform growth blueprint."],
+["youtube-tiktok","YouTube + TikTok Strategy",60,"Bundle","Cross-platform strategy connecting long-form and short-form growth."],
+["twitch-discord","Twitch + Discord Strategy",60,"Bundle","Streamer and community strategy connecting live content with a dedicated community."],
+["youtube-instagram-tiktok","YouTube + Instagram + TikTok Strategy",80,"Bundle","Three-platform content and discovery strategy."],
+["twitch-tiktok-discord","Twitch + TikTok + Discord Strategy",85,"Bundle","Live, short-form and community growth ecosystem strategy."],
+["youtube-twitch-tiktok","YouTube + Twitch + TikTok Strategy",95,"Bundle","Video, livestreaming and short-form cross-platform strategy."],
+["youtube-twitch-tiktok-discord","YouTube + Twitch + TikTok + Discord Strategy",120,"Bundle","Full creator ecosystem strategy."],
+["custom-multi","Custom Multi-Platform Strategy",150,"Custom","Tailored multi-platform strategy starting at $150+."]
+].map(x=>({id:x[0],name:x[1],price:x[2],category:x[3],description:x[4]}));
+const safe=u=>({id:u.id,name:u.name,email:u.email,role:u.role,createdAt:u.createdAt});
+function token(u){return jwt.sign({id:u.id,role:u.role},SECRET,{expiresIn:"30d"})}
+function auth(req,res,next){try{const t=req.cookies.auth,p=jwt.verify(t,SECRET),u=db.users.find(x=>x.id===p.id);if(!u)throw 0;req.user=u;next()}catch(e){res.status(401).json({error:"Authentication required"})}}
+function owner(req,res,next){if(req.user?.role!=="owner")return res.status(403).json({error:"Owner only"});next()}
+function conv(streamerId){let c=db.conversations.find(x=>x.streamerId===streamerId);if(!c){const o=db.users.find(x=>x.role==="owner");if(!o)throw Error("Owner not configured");c={id:uid("conv"),ownerId:o.id,streamerId,createdAt:now(),updatedAt:now()};db.conversations.push(c);save()}return c}
+async function seedOwner(){if(!OWNER_EMAIL||!OWNER_PASSWORD)return;if(!db.users.some(x=>x.role==="owner")){db.users.push({id:uid("usr"),name:"Agbota Segun",email:OWNER_EMAIL,passwordHash:await bcrypt.hash(OWNER_PASSWORD,12),role:"owner",createdAt:now()});save()}}seedOwner();
+app.use(express.json({limit:"2mb"}));app.use(express.urlencoded({extended:true}));app.use(cookieParser());app.use("/uploads",express.static(upDir));app.use(express.static(path.join(__dirname,"public")));
+const storage=multer.diskStorage({destination:upDir,filename:(r,f,cb)=>cb(null,Date.now()+"-"+crypto.randomBytes(4).toString("hex")+path.extname(f.originalname))});const upload=multer({storage,limits:{fileSize:15*1024*1024}});
+app.get("/api/products",(q,s)=>s.json(products));
+app.post("/api/auth/register",async(req,res)=>{const {name,email,password}=req.body;if(!name||!email||!password||password.length<8)return res.status(400).json({error:"Name, email and 8+ character password required"});const e=email.trim().toLowerCase();if(db.users.some(x=>x.email===e))return res.status(409).json({error:"Account already exists"});const u={id:uid("usr"),name:name.trim(),email:e,passwordHash:await bcrypt.hash(password,12),role:"streamer",createdAt:now()};db.users.push(u);conv(u.id);save();res.cookie("auth",token(u),{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",maxAge:2592e6});res.json({user:safe(u)})});
+app.post("/api/auth/login",async(req,res)=>{const u=db.users.find(x=>x.email===String(req.body.email||"").trim().toLowerCase());if(!u||!(await bcrypt.compare(String(req.body.password||""),u.passwordHash)))return res.status(401).json({error:"Invalid login"});res.cookie("auth",token(u),{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",maxAge:2592e6});res.json({user:safe(u)})});
+app.post("/api/auth/logout",(q,s)=>{s.clearCookie("auth");s.json({ok:true})});app.get("/api/auth/me",auth,(q,s)=>s.json({user:safe(q.user)}));
+function convInfo(user,c){const other=db.users.find(x=>x.id===(user.role==="owner"?c.streamerId:c.ownerId));const unread=db.messages.filter(m=>m.conversationId===c.id&&m.senderId!==user.id&&!m.readAt).length;const last=db.messages.filter(m=>m.conversationId===c.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];return {...c,other:other?safe(other):null,unread,lastMessage:last?.text||last?.fileName||""}}
+app.get("/api/conversations",auth,(q,s)=>{if(q.user.role==="owner")db.users.filter(x=>x.role==="streamer").forEach(x=>conv(x.id));s.json(db.conversations.filter(c=>c.ownerId===q.user.id||c.streamerId===q.user.id).map(c=>convInfo(q.user,c)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)))});
+app.get("/api/owner/streamers",auth,owner,(q,s)=>s.json(db.users.filter(x=>x.role==="streamer").map(u=>{const c=conv(u.id),last=db.messages.filter(m=>m.conversationId===c.id).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))[0];return {...safe(u),unread:db.messages.filter(m=>m.conversationId===c.id&&m.senderId!==q.user.id&&!m.readAt).length,lastMessage:last?.text||last?.fileName||"",lastAt:last?.createdAt||u.createdAt}}).sort((a,b)=>b.lastAt.localeCompare(a.lastAt))));
+app.post("/api/conversations/start/:id",auth,owner,(q,s)=>{const u=db.users.find(x=>x.id===q.params.id&&x.role==="streamer");if(!u)return s.status(404).json({error:"Streamer not found"});s.json(convInfo(q.user,conv(u.id)))});
+app.get("/api/conversations/:id/messages",auth,(q,s)=>{const c=db.conversations.find(x=>x.id===q.params.id);if(!c||(c.ownerId!==q.user.id&&c.streamerId!==q.user.id))return s.status(404).json({error:"Conversation not found"});const ms=db.messages.filter(m=>m.conversationId===c.id).sort((a,b)=>a.createdAt.localeCompare(b.createdAt));ms.forEach(m=>{if(m.senderId!==q.user.id&&!m.readAt)m.readAt=now()});save();s.json(ms)});
+app.post("/api/conversations/:id/messages",auth,upload.single("file"),(q,s)=>{const c=db.conversations.find(x=>x.id===q.params.id);if(!c||(c.ownerId!==q.user.id&&c.streamerId!==q.user.id))return s.status(404).json({error:"Conversation not found"});if(!q.body.text&&!q.file)return s.status(400).json({error:"Empty message"});const m={id:uid("msg"),conversationId:c.id,senderId:q.user.id,senderName:q.user.name,type:q.body.type||"text",text:String(q.body.text||""),fileUrl:q.file?"/uploads/"+q.file.filename:null,fileName:q.file?.originalname||null,createdAt:now(),readAt:null};db.messages.push(m);c.updatedAt=m.createdAt;save();io.to("c:"+c.id).emit("message:new",m);io.emit("inbox:update",{conversationId:c.id});s.json(m)});
+app.post("/api/conversations/:id/read",auth,(q,s)=>{const c=db.conversations.find(x=>x.id===q.params.id);if(!c||(c.ownerId!==q.user.id&&c.streamerId!==q.user.id))return s.status(404).end();db.messages.filter(m=>m.conversationId===c.id&&m.senderId!==q.user.id).forEach(m=>m.readAt=now());save();s.json({ok:true})});
+app.get("/api/orders",auth,(q,s)=>s.json(db.orders.filter(o=>q.user.role==="owner"||o.streamerId===q.user.id).map(o=>({...o,product:products.find(p=>p.id===o.productId)}))));
+app.post("/api/orders",auth,(q,s)=>{const p=products.find(p=>p.id===q.body.productId);if(!p)return s.status(404).json({error:"Product not found"});const o={id:uid("ord"),orderNumber:"AGB-"+Math.floor(1e5+Math.random()*9e5),streamerId:q.user.id,productId:p.id,price:p.price,paymentStatus:"Awaiting Payment",status:"Awaiting Payment",createdAt:now()};db.orders.push(o);save();s.json({...o,product:p,btcAddress:BTC})});
+app.post("/api/orders/:id/receipt",auth,upload.single("receipt"),(q,s)=>{const o=db.orders.find(x=>x.id===q.params.id);if(!o||(q.user.role!=="owner"&&o.streamerId!==q.user.id))return s.status(404).end();if(!q.file)return s.status(400).json({error:"Receipt required"});o.receiptUrl="/uploads/"+q.file.filename;o.paymentStatus="Payment Review";save();io.emit("order:update",o);s.json(o)});
+app.post("/api/orders/:id/confirm",auth,owner,(q,s)=>{const o=db.orders.find(x=>x.id===q.params.id);if(!o)return s.status(404).end();o.paymentStatus="Paid";o.status="Paid";o.confirmedAt=now();save();io.emit("order:update",o);s.json(o)});
+app.post("/api/orders/:id/status",auth,owner,(q,s)=>{const allowed=["Awaiting Payment","Payment Review","Paid","In Progress","Delivered","Completed","Cancelled"];if(!allowed.includes(q.body.status))return s.status(400).json({error:"Invalid status"});const o=db.orders.find(x=>x.id===q.params.id);if(!o)return s.status(404).end();o.status=q.body.status;save();io.emit("order:update",o);s.json(o)});
+app.get("/api/config/public",(q,s)=>s.json({btcAddress:BTC,paypalText:"Message Agbota Segun for PayPal payment instructions."}));
+io.use((socket,next)=>{try{const c=(socket.handshake.headers.cookie||"").split(";").map(x=>x.trim()),t=c.find(x=>x.startsWith("auth="))?.split("=")[1],p=jwt.verify(t,SECRET),u=db.users.find(x=>x.id===p.id);if(!u)throw 0;socket.user=u;next()}catch(e){next(new Error("Unauthorized"))}});
+io.on("connection",s=>s.on("conversation:join",id=>{const c=db.conversations.find(x=>x.id===id);if(c&&(c.ownerId===s.user.id||c.streamerId===s.user.id))s.join("c:"+id)}));
+app.get("*",(q,s)=>s.sendFile(path.join(__dirname,"public","index.html")));server.listen(PORT,()=>console.log("Agbota Segun Store on "+PORT));
