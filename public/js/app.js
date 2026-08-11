@@ -133,12 +133,13 @@ function navHtml(authed) {
   const links = authed
     ? `
       <a class="nav-link ${isActive('/strategies')}" href="/strategies" data-nav>Strategies</a>
+      <a class="nav-link ${isActive('/proof')}" href="/proof" data-nav>Proof of Work</a>
       <a class="nav-link ${isActive(store.user.role === 'owner' ? '/admin' : '/dashboard')}" href="${store.user.role === 'owner' ? '/admin' : '/dashboard'}" data-nav>Dashboard</a>
       <a class="nav-link ${isActive('/dashboard/chat') || isActive('/admin/messages')}" href="${store.user.role === 'owner' ? '/admin/messages' : '/dashboard/chat'}" data-nav>Chat <span data-unread-badge></span></a>`
     : `
       <a class="nav-link ${isActive('/strategies')}" href="/strategies" data-nav>Strategies</a>
+      <a class="nav-link ${isActive('/proof')}" href="/proof" data-nav>Proof of Work</a>
       <a class="nav-link ${isActive('/how-it-works')}" href="/how-it-works" data-nav>How it works</a>
-      <a class="nav-link ${isActive('/proof')}" href="/proof" data-nav>Proof</a>
       <a class="nav-link ${isActive('/about')}" href="/about" data-nav>About</a>
       <a class="nav-link ${isActive('/contact')}" href="/contact" data-nav>Contact</a>`;
   const cta = authed
