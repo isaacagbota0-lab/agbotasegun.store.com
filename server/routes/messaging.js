@@ -265,7 +265,7 @@ router.post('/notifications/read', auth.requireAuth, async (req, res, next) => {
 router.get('/files/:kind/:id', auth.requireAuth, async (req, res, next) => {
   try {
     const { kind, id } = req.params;
-    if (!['m', 'o', 'p'].includes(kind)) return res.status(404).json({ error: 'File not found.' });
+    if (!['m', 'o', 'p', 'pr'].includes(kind)) return res.status(404).json({ error: 'File not found.' });
 
     const isOwner = req.user.role === 'owner';
     const fileMeta = await db.withUser(req.user, async (q) => {
@@ -289,11 +289,22 @@ router.get('/files/:kind/:id', auth.requireAuth, async (req, res, next) => {
         if (!rows.length || !rows[0].receipt_url) return null;
         return { url: rows[0].receipt_url, name: 'receipt' };
       }
-      const rows = isOwner
-        ? await q('SELECT receipt_url FROM payments WHERE id = $1', [id])
-        : await q('SELECT receipt_url FROM payments WHERE id = $1 AND streamer_id = $2', [id, req.user.id]);
-      if (!rows.length || !rows[0].receipt_url) return null;
-      return { url: rows[0].receipt_url, name: 'payment-receipt' };
+      if (kind === 'p') {
+        const rows = isOwner
+          ? await q('SELECT receipt_url FROM payments WHERE id = $1', [id])
+          : await q('SELECT receipt_url FROM payments WHERE id = $1 AND streamer_id = $2', [id, req.user.id]);
+        if (!rows.length || !rows[0].receipt_url) return null;
+        return { url: rows[0].receipt_url, name: 'payment-receipt' };
+      }
+      if (kind === 'pr') {
+        // Published proof images are public; unpublished ones are owner-only.
+        const rows = isOwner
+          ? await q('SELECT image_url FROM proof_items WHERE id = $1', [id])
+          : await q('SELECT image_url FROM proof_items WHERE id = $1 AND published = TRUE', [id]);
+        if (!rows.length || !rows[0].image_url) return null;
+        return { url: rows[0].image_url, name: 'proof' };
+      }
+      return null;
     });
 
     if (!fileMeta || !fileMeta.url.startsWith(`/api/files/${kind}/`)) {

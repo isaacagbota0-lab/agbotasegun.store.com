@@ -135,11 +135,13 @@ participants / the owning streamer / the owner.
 - **Admin** — overview stats (real counts), streamer management + search,
   inbox, orders, payments, product catalog editing, review moderation,
   settings.
-- **Proof of work** — a public "Real Work. Real Conversations." gallery with
-  three categories (client conversations, strategy delivery, channel
-  progress), lightbox with prev/next/keyboard, and captions. It renders only
-  from `public/js/proof-data.js` — no items exist until the owner provides
-  real (redacted) screenshots. No invented testimonials or numbers.
+- **Proof of work** — a database-backed "Proof of Work" gallery with six
+  categories (client conversations, strategy work, streamer analysis, channel
+  progress, feedback, payout evidence), live counts per category, and a
+  lightbox with prev/next, zoom, keyboard and mobile swipe. The owner manages
+  everything from Admin → Proof: upload screenshots (with a privacy warning —
+  new items start unpublished), edit, publish/unpublish, reorder and delete.
+  Only explicitly published items appear publicly; nothing is invented.
 - **Notifications** — database rows pushed in realtime for signups, messages,
   orders and payment reviews.
 

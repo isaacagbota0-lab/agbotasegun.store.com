@@ -217,20 +217,20 @@ export async function homeView(el) {
         <div class="grid-3">
           <div class="card card-hover" style="display:grid;gap:10px">
             <span class="ic" style="width:44px;height:44px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent-line);display:grid;place-items:center;color:var(--accent)">${icon('chat', 20)}</span>
-            <h3 style="font-size:19px">Client Conversations</h3>
-            <p class="muted" style="font-size:14px;line-height:1.65">Authentic communication, support, feedback and delivery conversations with real clients.</p>
+            <h3 style="font-size:19px">Client Conversations &amp; Feedback</h3>
+            <p class="muted" style="font-size:14px;line-height:1.65">Real communication, support and reactions from streamers — plus genuine feedback after delivery.</p>
             <a class="btn btn-ghost btn-sm" href="/proof" data-nav style="justify-content:center">View conversations</a>
           </div>
           <div class="card card-hover" style="display:grid;gap:10px">
-            <span class="ic" style="width:44px;height:44px;border-radius:12px;background:var(--blue-soft);border:1px solid rgba(122,167,240,.3);display:grid;place-items:center;color:var(--blue)">${icon('box', 20)}</span>
-            <h3 style="font-size:19px">Strategy Delivery</h3>
-            <p class="muted" style="font-size:14px;line-height:1.65">Proof that strategy products are actually delivered and supported — not just sold.</p>
-            <a class="btn btn-ghost btn-sm" href="/proof" data-nav style="justify-content:center">View deliveries</a>
+            <span class="ic" style="width:44px;height:44px;border-radius:12px;background:var(--blue-soft);border:1px solid rgba(122,167,240,.3);display:grid;place-items:center;color:var(--blue)">${icon('doc', 20)}</span>
+            <h3 style="font-size:19px">Strategy Work &amp; Streamer Analysis</h3>
+            <p class="muted" style="font-size:14px;line-height:1.65">Delivered strategies and real channel analysis — recommendations, optimization and plans.</p>
+            <a class="btn btn-ghost btn-sm" href="/proof" data-nav style="justify-content:center">View strategy work</a>
           </div>
           <div class="card card-hover" style="display:grid;gap:10px">
             <span class="ic" style="width:44px;height:44px;border-radius:12px;background:var(--green-soft);border:1px solid rgba(67,209,138,.3);display:grid;place-items:center;color:var(--green)">${icon('trend', 20)}</span>
-            <h3 style="font-size:19px">Channel Progress</h3>
-            <p class="muted" style="font-size:14px;line-height:1.65">Examples of channel and account progress — shared as evidence, never as a guarantee.</p>
+            <h3 style="font-size:19px">Channel Progress &amp; Payout Evidence</h3>
+            <p class="muted" style="font-size:14px;line-height:1.65">Creator-shared progress and earnings evidence — shown transparently, never as a guarantee.</p>
             <a class="btn btn-ghost btn-sm" href="/proof" data-nav style="justify-content:center">View progress</a>
           </div>
         </div>

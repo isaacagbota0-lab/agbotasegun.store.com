@@ -115,6 +115,22 @@ CREATE TABLE IF NOT EXISTS reviews (
 );
 CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews (status, created_at DESC);
 
+-- ── Proof of work items (admin-managed, real screenshots only) ─────────────
+CREATE TABLE IF NOT EXISTS proof_items (
+  id          TEXT PRIMARY KEY,
+  title       TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 120),
+  category    TEXT NOT NULL CHECK (category IN ('conversations', 'strategy', 'analysis', 'progress', 'feedback', 'payouts')),
+  platform    TEXT CHECK (platform IS NULL OR char_length(platform) <= 60),
+  caption     TEXT CHECK (caption IS NULL OR char_length(caption) <= 500),
+  item_date   TEXT CHECK (item_date IS NULL OR char_length(item_date) <= 40),
+  image_url   TEXT NOT NULL,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  published   BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_proof_published ON proof_items (published, sort_order, created_at DESC);
+
 -- ── Notifications ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notifications (
   id         TEXT PRIMARY KEY,
@@ -150,6 +166,9 @@ CREATE TRIGGER trg_conversations_updated BEFORE UPDATE ON conversations
 DROP TRIGGER IF EXISTS trg_products_updated ON products;
 CREATE TRIGGER trg_products_updated BEFORE UPDATE ON products
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+DROP TRIGGER IF EXISTS trg_proof_updated ON proof_items;
+CREATE TRIGGER trg_proof_updated BEFORE UPDATE ON proof_items
+  FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Row Level Security
@@ -173,6 +192,8 @@ ALTER TABLE reviews                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reviews                   FORCE ROW LEVEL SECURITY;
 ALTER TABLE notifications             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications             FORCE ROW LEVEL SECURITY;
+ALTER TABLE proof_items               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE proof_items               FORCE ROW LEVEL SECURITY;
 
 -- ── Auth entry points (bypass RLS on purpose; gated by application code) ──
 CREATE OR REPLACE FUNCTION app_get_profile_by_id(uid TEXT)
@@ -320,3 +341,11 @@ CREATE POLICY notifications_select ON notifications FOR SELECT
 DROP POLICY IF EXISTS notifications_update ON notifications;
 CREATE POLICY notifications_update ON notifications FOR UPDATE
   USING (user_id = app_uid());
+
+-- proof_items: published items are public; the owner manages everything
+DROP POLICY IF EXISTS proof_select ON proof_items;
+CREATE POLICY proof_select ON proof_items FOR SELECT
+  USING (published = TRUE OR app_is_owner());
+DROP POLICY IF EXISTS proof_admin ON proof_items;
+CREATE POLICY proof_admin ON proof_items FOR ALL
+  USING (app_is_owner()) WITH CHECK (app_is_owner());

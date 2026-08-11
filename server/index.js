@@ -23,6 +23,7 @@ const storeRoutes = require('./routes/store');
 const reviewRoutes = require('./routes/reviews');
 const messagingRoutes = require('./routes/messaging');
 const adminRoutes = require('./routes/admin');
+const proofRoutes = require('./routes/proof');
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 async function boot() {
@@ -74,6 +75,7 @@ async function boot() {
   app.use('/api', storeRoutes);
   app.use('/api', reviewRoutes);
   app.use('/api', messagingRoutes);
+  app.use('/api', proofRoutes);
   app.use('/api/admin', adminRoutes);
 
   // Static assets (frontend + self-hosted fonts)

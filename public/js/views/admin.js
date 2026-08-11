@@ -1,7 +1,7 @@
 /* Owner / Admin dashboard — /admin and tabs. Every number is real database data. */
 'use strict';
 
-import { api, post, patch } from '../api.js';
+import { api, post, patch, postForm } from '../api.js';
 import { store, refreshAdmin, refreshOrders } from '../store.js';
 import { esc, icon, money, fmtDate, fmtDateTime, timeAgo, toastOk, toastErr, openModal, closeModal, modalHead, statusPill, emptyState, skeleton } from '../ui.js';
 import { renderChatPage } from './chat.js';
@@ -15,6 +15,7 @@ const TABS = [
   { id: 'payments', label: 'Payments', icon: 'payments' },
   { id: 'products', label: 'Products', icon: 'box' },
   { id: 'reviews', label: 'Reviews', icon: 'star' },
+  { id: 'proof', label: 'Proof', icon: 'camera' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
@@ -43,7 +44,7 @@ export async function adminView(el, [tab = 'overview']) {
   const views = {
     overview: renderOverview, streamers: renderStreamers, messages: renderMessages,
     orders: renderOrders, payments: renderPayments, products: renderProducts,
-    reviews: renderReviews, settings: renderSettings,
+    reviews: renderReviews, proof: renderProof, settings: renderSettings,
   };
   await views[active](main);
 }
@@ -607,5 +608,256 @@ async function renderSettings(main) {
       main.querySelector('#ad-new').value = '';
       main.querySelector('#ad-new2').value = '';
     } catch (err) { toastErr('Could not update password', err.message); }
+  });
+}
+
+/* ── Proof management ────────────────────────────────────────────────────── */
+const PROOF_CATS = [
+  { id: 'conversations', label: 'Client Conversations' },
+  { id: 'strategy', label: 'Strategy Work' },
+  { id: 'analysis', label: 'Streamer Analysis' },
+  { id: 'progress', label: 'Channel Progress' },
+  { id: 'feedback', label: 'Feedback' },
+  { id: 'payouts', label: 'Payout Evidence' },
+];
+
+async function renderProof(main) {
+  main.innerHTML = `
+    <div class="dash-head">
+      <div>
+        <div class="crumb">Owner dashboard</div>
+        <h1>Proof of Work</h1>
+      </div>
+      <button class="btn btn-primary" data-action="proof-upload">${icon('plus', 16)}Upload proof</button>
+    </div>
+    <div class="stat-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px" id="proof-stats"></div>
+    <div class="card">
+      <p class="small muted" style="line-height:1.6;margin-bottom:14px">Only screenshots <b>you explicitly publish</b> appear on the public /proof page. New uploads start unpublished so you can review them first.</p>
+      <div id="proof-list">${skeleton(3)}</div>
+    </div>`;
+
+  const load = async () => {
+    const items = await api('/api/admin/proof');
+    const published = items.filter((i) => i.published).length;
+    main.querySelector('#proof-stats').innerHTML = `
+      <div class="card stat-card"><span class="label">Total items</span><span class="value">${items.length}</span><span class="hint">uploaded by you</span></div>
+      <div class="card stat-card"><span class="label">Published</span><span class="value accent">${published}</span><span class="hint">visible on /proof</span></div>
+      <div class="card stat-card"><span class="label">Unpublished</span><span class="value">${items.length - published}</span><span class="hint">awaiting your review</span></div>`;
+
+    const list = main.querySelector('#proof-list');
+    if (!items.length) {
+      list.innerHTML = emptyState('camera', 'No proof items yet', 'Upload real screenshots — client conversations, strategy work, streamer analysis, channel progress, feedback and payout evidence. Nothing is published until you say so.');
+      return;
+    }
+    list.innerHTML = `
+      <div class="stack">
+        ${items.map((it, idx) => `
+          <div class="flex-between" style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;gap:14px">
+            <div class="flex" style="gap:12px;min-width:0;flex:1">
+              <img src="${esc(it.image_url)}" alt="" style="width:74px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex:none;background:var(--panel-2)">
+              <div style="min-width:0">
+                <div class="flex" style="gap:8px;flex-wrap:wrap">
+                  <b class="small">${esc(it.title)}</b>
+                  ${it.published ? '<span class="pill green">Published</span>' : '<span class="pill gray">Unpublished</span>'}
+                </div>
+                <div class="muted micro mt-8" style="display:flex;gap:10px;flex-wrap:wrap">
+                  <span>${esc(PROOF_CATS.find((c) => c.id === it.category)?.label || it.category)}</span>
+                  ${it.platform ? `<span>· ${esc(it.platform)}</span>` : ''}
+                  ${it.item_date ? `<span>· ${esc(it.item_date)}</span>` : ''}
+                </div>
+              </div>
+            </div>
+            <div class="flex" style="gap:6px;flex-wrap:wrap;flex:none">
+              <button class="btn btn-ghost btn-sm" data-action="proof-up" data-id="${esc(it.id)}" title="Move up" ${idx === 0 ? 'disabled' : ''}>${icon('arrowLeft', 14)}</button>
+              <button class="btn btn-ghost btn-sm" data-action="proof-down" data-id="${esc(it.id)}" title="Move down" ${idx === items.length - 1 ? 'disabled' : ''}>${icon('arrowRight', 14)}</button>
+              <button class="btn btn-ghost btn-sm" data-action="proof-preview" data-id="${esc(it.id)}">${icon('search', 14)}</button>
+              <button class="btn ${it.published ? 'btn-ghost' : 'btn-primary'} btn-sm" data-action="proof-toggle" data-id="${esc(it.id)}">${it.published ? 'Unpublish' : 'Publish'}</button>
+              <button class="btn btn-ghost btn-sm" data-action="proof-edit" data-id="${esc(it.id)}">${icon('edit', 14)}</button>
+              <button class="btn btn-danger btn-sm" data-action="proof-delete" data-id="${esc(it.id)}">${icon('trash', 14)}</button>
+            </div>
+          </div>`).join('')}
+      </div>`;
+
+    list.querySelectorAll('[data-action="proof-preview"]').forEach((b) => b.addEventListener('click', () => {
+      const it = items.find((x) => x.id === b.dataset.id);
+      openModal(`<div class="modal-body" style="padding:16px"><div class="flex-between"><h3>${esc(it.title)}</h3><button class="modal-x" data-action="close-modal">×</button></div><img src="${esc(it.image_url)}" alt="" style="width:100%;border-radius:10px;margin-top:10px"></div>`, { wide: true });
+    }));
+    list.querySelectorAll('[data-action="proof-up"], [data-action="proof-down"]').forEach((b) => b.addEventListener('click', () => {
+      const dir = b.dataset.action === 'proof-up' ? -1 : 1;
+      const idx = items.findIndex((x) => x.id === b.dataset.id);
+      const j = idx + dir;
+      if (j < 0 || j >= items.length) return;
+      const copy = [...items];
+      [copy[idx], copy[j]] = [copy[j], copy[idx]];
+      reorderProof(copy).then(load);
+    }));
+    list.querySelectorAll('[data-action="proof-toggle"]').forEach((b) => b.addEventListener('click', async () => {
+      const it = items.find((x) => x.id === b.dataset.id);
+      try {
+        await patch(`/api/admin/proof/${it.id}`, { title: it.title, category: it.category, platform: it.platform, caption: it.caption, item_date: it.item_date, published: !it.published });
+        toastOk(it.published ? 'Unpublished' : 'Published', it.published ? 'This item is no longer visible publicly.' : 'This item is now visible on /proof.');
+        load();
+      } catch (err) { toastErr('Could not update', err.message); }
+    }));
+    list.querySelectorAll('[data-action="proof-edit"]').forEach((b) => b.addEventListener('click', () => proofEditModal(items.find((x) => x.id === b.dataset.id), load)));
+    list.querySelectorAll('[data-action="proof-delete"]').forEach((b) => b.addEventListener('click', async () => {
+      if (!window.confirm('Delete this proof item permanently?')) return;
+      try {
+        await api(`/api/admin/proof/${b.dataset.id}`, { method: 'DELETE' });
+        toastOk('Deleted', 'The proof item was removed.');
+        load();
+      } catch (err) { toastErr('Could not delete', err.message); }
+    }));
+  };
+
+  main.querySelector('[data-action="proof-upload"]').addEventListener('click', () => proofUploadModal(load));
+  await load();
+}
+
+async function reorderProof(orderedItems) {
+  try {
+    await post('/api/admin/proof/reorder', { orderedIds: orderedItems.map((i) => i.id) });
+  } catch (_) { /* order is best-effort */ }
+}
+
+function proofCategorySelect(selected) {
+  return PROOF_CATS.map((c) => `<option value="${c.id}" ${c.id === selected ? 'selected' : ''}>${c.label}</option>`).join('');
+}
+
+/* Upload modal — includes privacy warning before anything is published. */
+function proofUploadModal(reload) {
+  openModal(`
+    ${modalHead('Upload proof screenshot')}
+    <div class="modal-body">
+      <div class="instructions" style="border-color:rgba(239,107,107,.35);background:var(--red-soft)">
+        <b style="color:#ff9b9b">${icon('shield', 15)} Privacy check — read before uploading</b>
+        <span>Only publish screenshots that you have permission to display publicly.</span>
+        <span>Before uploading, check the image for: email addresses · phone numbers · payment or account information · addresses · passwords · private usernames · personal identifiers · sensitive private conversations.</span>
+        <span>If anything sensitive is visible, upload a <b>redacted version</b> instead. New uploads stay <b>unpublished</b> until you review and publish them.</span>
+      </div>
+      <div class="field">
+        <label for="pu-file">Screenshot (JPG, PNG, WEBP)</label>
+        <input class="input" type="file" id="pu-file" accept="image/jpeg,image/png,image/webp,image/gif" required>
+        <img id="pu-preview" alt="Preview" style="display:none;max-height:220px;border-radius:10px;border:1px solid var(--line);margin-top:8px">
+      </div>
+      <div class="field">
+        <label for="pu-title">Title</label>
+        <input class="input" id="pu-title" maxlength="120" placeholder="e.g. Channel analysis for a Twitch streamer">
+      </div>
+      <div class="field">
+        <label for="pu-cat">Category</label>
+        <select class="input" id="pu-cat">${proofCategorySelect('conversations')}</select>
+      </div>
+      <div class="grid-2" style="grid-template-columns:1fr 1fr">
+        <div class="field">
+          <label for="pu-platform">Platform (optional)</label>
+          <input class="input" id="pu-platform" maxlength="60" placeholder="Twitch, YouTube…">
+        </div>
+        <div class="field">
+          <label for="pu-date">Date (optional)</label>
+          <input class="input" id="pu-date" maxlength="40" placeholder="e.g. 2026-07">
+        </div>
+      </div>
+      <div class="field">
+        <label for="pu-caption">Factual caption (optional)</label>
+        <textarea class="input" id="pu-caption" maxlength="500" rows="2" placeholder="Short factual description — no invented claims."></textarea>
+      </div>
+      <button class="btn btn-primary btn-lg btn-block" id="pu-submit" style="justify-content:center">${icon('upload', 17)}Upload (starts unpublished)</button>
+    </div>`);
+
+  const fileInput = document.getElementById('pu-file');
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files[0];
+    if (!f) return;
+    const preview = document.getElementById('pu-preview');
+    preview.src = URL.createObjectURL(f);
+    preview.style.display = 'block';
+  });
+
+  document.getElementById('pu-submit').addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    const title = document.getElementById('pu-title').value.trim();
+    if (!file) return toastErr('Screenshot required', 'Choose the screenshot image to upload.');
+    if (!title) return toastErr('Title required', 'Give the proof item a short title.');
+
+    const fd = new FormData();
+    fd.append('image', file, file.name);
+    fd.append('title', title);
+    fd.append('category', document.getElementById('pu-cat').value);
+    fd.append('platform', document.getElementById('pu-platform').value.trim());
+    fd.append('item_date', document.getElementById('pu-date').value.trim());
+    fd.append('caption', document.getElementById('pu-caption').value.trim());
+    const btn = document.getElementById('pu-submit');
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spin">${icon('refresh', 16)}</span> Uploading…`;
+    try {
+      await postForm('/api/admin/proof', fd);
+      closeModal();
+      toastOk('Uploaded', 'The item is saved as unpublished. Review it, then publish when ready.');
+      reload();
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = `${icon('upload', 17)}Upload (starts unpublished)`;
+      toastErr('Upload failed', err.message);
+    }
+  });
+}
+
+/* Edit modal — metadata + publish toggle. */
+function proofEditModal(item, reload) {
+  openModal(`
+    ${modalHead('Edit proof item')}
+    <div class="modal-body">
+      <img src="${esc(item.image_url)}" alt="" style="max-height:200px;border-radius:10px;border:1px solid var(--line);width:100%;object-fit:cover">
+      <div class="field">
+        <label for="pe-title">Title</label>
+        <input class="input" id="pe-title" maxlength="120" value="${esc(item.title)}">
+      </div>
+      <div class="field">
+        <label for="pe-cat">Category</label>
+        <select class="input" id="pe-cat">${proofCategorySelect(item.category)}</select>
+      </div>
+      <div class="grid-2" style="grid-template-columns:1fr 1fr">
+        <div class="field">
+          <label for="pe-platform">Platform (optional)</label>
+          <input class="input" id="pe-platform" maxlength="60" value="${esc(item.platform || '')}">
+        </div>
+        <div class="field">
+          <label for="pe-date">Date (optional)</label>
+          <input class="input" id="pe-date" maxlength="40" value="${esc(item.item_date || '')}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="pe-caption">Factual caption (optional)</label>
+        <textarea class="input" id="pe-caption" maxlength="500" rows="2">${esc(item.caption || '')}</textarea>
+      </div>
+      <label class="flex" style="gap:10px;cursor:pointer;border:1px solid var(--line);border-radius:10px;padding:11px 13px">
+        <input type="checkbox" id="pe-published" ${item.published ? 'checked' : ''} style="width:17px;height:17px">
+        <span class="small">Published (visible on the public /proof page)</span>
+      </label>
+      <button class="btn btn-primary btn-lg btn-block" id="pe-save" style="justify-content:center">Save changes</button>
+    </div>`);
+
+  document.getElementById('pe-save').addEventListener('click', async () => {
+    const body = {
+      title: document.getElementById('pe-title').value.trim(),
+      category: document.getElementById('pe-cat').value,
+      platform: document.getElementById('pe-platform').value.trim(),
+      item_date: document.getElementById('pe-date').value.trim(),
+      caption: document.getElementById('pe-caption').value.trim(),
+      published: document.getElementById('pe-published').checked,
+    };
+    if (!body.title) return toastErr('Title required', 'Give the proof item a short title.');
+    const btn = document.getElementById('pe-save');
+    btn.disabled = true;
+    try {
+      await patch(`/api/admin/proof/${item.id}`, body);
+      closeModal();
+      toastOk('Saved', 'The proof item was updated.');
+      reload();
+    } catch (err) {
+      btn.disabled = false;
+      toastErr('Could not save', err.message);
+    }
   });
 }
