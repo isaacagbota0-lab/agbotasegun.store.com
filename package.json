@@ -1,5 +1,35 @@
 {
-  "name":"agbota-segun-store","version":"1.0.0","private":true,
-  "scripts":{"start":"node server.js","dev":"node server.js"},
-  "dependencies":{"bcryptjs":"^2.4.3","cookie-parser":"^1.4.6","dotenv":"^16.4.7","express":"^4.21.2","jsonwebtoken":"^9.0.2","multer":"^1.4.5-lts.1","socket.io":"^4.8.1"}
+  "name": "agbota-segun",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Agbota Segun — Creator & Streamer Growth Strategies. Digital strategy store, streamer accounts, owner dashboard, real-time chat, orders and payment workflow.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "db:reset": "node scripts/reset-db.js",
+    "check": "node --check server/index.js && node --check server/db.js && node --check server/auth.js && node --check server/uploads.js && node --check server/realtime.js && node --check server/routes/auth.js && node --check server/routes/store.js && node --check server/routes/reviews.js && node --check server/routes/messaging.js && node --check server/routes/admin.js && node --check server/seed.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.3.10",
+    "@fontsource-variable/dm-sans": "^5.2.6",
+    "@fontsource-variable/fraunces": "^5.2.6",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.2",
+    "pg": "^8.16.3",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1",
+    "sharp": "^0.35.3",
+    "socket.io-client": "^4.8.3"
+  }
 }
